@@ -69,6 +69,34 @@ def test_minimum_coverage_for_every_candidate(client, candidates, index):
     assert body["report"]["questionsAnswered"] >= settings.min_questions - 1
 
 
+def test_strong_answers_do_not_starve_breadth(client, candidates):
+    """Follow-ups must not eat the budget the later blueprint topics need."""
+    session_id, body, _ = _run(
+        client,
+        candidates[0],
+        answer=(
+            "I built the query router myself. It sends numeric claims lookups to SQLite and "
+            "coverage questions to ChromaDB semantic retrieval, then merges and deduplicates "
+            "both result sets onto one normalised score. I measured retrieval accuracy across "
+            "a fixed set of healthcare questions before and after, and p95 latency stayed at 400ms."
+        ),
+    )
+    plan = client.get(f"/api/interview/{session_id}").json()["plan"]
+    covered_topics = {t["topic"] for t in body["report"]["topics"]}
+
+    assert body["done"] is True
+    # Every planned topic but at most one must actually get asked.
+    assert len(covered_topics) >= len(plan) - 1
+    assert len(body["progress"]["daysCovered"]) >= 6
+
+
+def test_feedback_does_not_repeat_a_topic(client, candidates):
+    _, body, _ = _run(client, candidates[9])
+    for key in ("strengths", "gaps", "next"):
+        items = body["feedback"][key]
+        assert len(items) == len(set(items)), f"duplicate entries in {key}"
+
+
 def test_unknown_session_without_candidate_is_404(client):
     response = client.post("/api/interview", json={"sessionId": "nope-" + str(uuid.uuid4()), "message": "hi"})
     assert response.status_code == 404

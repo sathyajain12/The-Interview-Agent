@@ -123,6 +123,16 @@ class Interview:
         at_last = self.slot_index >= len(self.blueprint) - 1
         return at_last and self.followups_used >= self.followups_allowed
 
+    def _has_budget_for_followup(self) -> bool:
+        """Never spend a follow-up that a not-yet-asked blueprint topic needs.
+
+        Without this, a candidate who answers well early burns the question
+        budget on three-deep follow-ups and the interview never reaches
+        deployment or security - breadth quietly loses to depth.
+        """
+        remaining_slots = max(len(self.blueprint) - self.slot_index - 1, 0)
+        return self.asked + 1 + remaining_slots <= settings.max_questions
+
     def _momentum(self) -> str:
         scores = [r.evaluation["score"] for r in self.records if r.evaluation][-3:]
         if not scores:
@@ -265,7 +275,7 @@ class Interview:
         wants_followup = (
             recommendation == "follow_up"
             and self.followups_used < self.followups_allowed
-            and self.asked < settings.max_questions
+            and self._has_budget_for_followup()
             and "dont_know" not in evaluation.get("flags", [])
         )
 

@@ -65,9 +65,31 @@ _TERM_CAP = 24
 _SATURATION = 0.28
 
 
+_PREFIX = 5
+
+
 def _rubric_terms(slot: Slot) -> set[str]:
     blob = " ".join(slot.rubric) + " " + slot.label
     return set(_tokens(blob))
+
+
+def _matches(terms: set[str], answer_terms: set[str]) -> set[str]:
+    """Overlap with prefix matching, so 'similarity' counts against 'similar'.
+
+    Stemming alone is not enough here: curriculum objectives are written in
+    noun form and candidates answer in verb form.
+    """
+    hits: set[str] = set()
+    short = {a for a in answer_terms if len(a) < _PREFIX}
+    prefixes = {a[:_PREFIX] for a in answer_terms if len(a) >= _PREFIX}
+    for term in terms:
+        if term in answer_terms:
+            hits.add(term)
+        elif len(term) >= _PREFIX and term[:_PREFIX] in prefixes:
+            hits.add(term)
+        elif term in short:
+            hits.add(term)
+    return hits
 
 
 def evaluate(answer: str, slot: Slot) -> dict[str, Any]:
@@ -111,10 +133,10 @@ def evaluate(answer: str, slot: Slot) -> dict[str, Any]:
 
     terms = _rubric_terms(slot)
     answer_terms = set(_tokens(text))
-    hit = terms & answer_terms
+    hit = _matches(terms, answer_terms)
     relevance = len(hit) / max(min(len(terms), _TERM_CAP), 1)
 
-    covered = [point for point in slot.rubric if set(_tokens(point)) & answer_terms]
+    covered = [point for point in slot.rubric if len(_matches(set(_tokens(point)), answer_terms)) >= 2]
     missing = [point for point in slot.rubric if point not in covered]
 
     # 1 point for engaging at all, up to 2.5 for on-topic substance.
@@ -230,9 +252,25 @@ def feedback(profile: CandidateProfile, records: list[dict[str, Any]]) -> dict[s
     scores = [r["evaluation"]["score"] for r in scored]
     avg = sum(scores) / len(scores) if scores else 0.0
 
-    ranked = sorted(scored, key=lambda r: r["evaluation"]["score"], reverse=True)
-    best = [r for r in ranked if r["evaluation"]["score"] >= 3][:3]
-    worst = [r for r in reversed(ranked) if r["evaluation"]["score"] <= 2][:3]
+    # One entry per topic, keeping that topic's best and worst showing - a
+    # follow-up is the same topic, not a second data point to list twice.
+    best_by_topic: dict[str, dict[str, Any]] = {}
+    worst_by_topic: dict[str, dict[str, Any]] = {}
+    for r in scored:
+        label, score = r["label"], r["evaluation"]["score"]
+        if label not in best_by_topic or score > best_by_topic[label]["evaluation"]["score"]:
+            best_by_topic[label] = r
+        if label not in worst_by_topic or score < worst_by_topic[label]["evaluation"]["score"]:
+            worst_by_topic[label] = r
+
+    best = sorted(
+        (r for r in best_by_topic.values() if r["evaluation"]["score"] >= 3),
+        key=lambda r: -r["evaluation"]["score"],
+    )[:3]
+    worst = sorted(
+        (r for r in worst_by_topic.values() if r["evaluation"]["score"] <= 2),
+        key=lambda r: r["evaluation"]["score"],
+    )[:3]
 
     band = (
         "strong across the board" if avg >= 4
@@ -241,14 +279,19 @@ def feedback(profile: CandidateProfile, records: list[dict[str, Any]]) -> dict[s
         else "early; you can describe the work but not yet defend the decisions behind it"
     )
 
+    closing_note = (
+        " The questions that went best were the ones where you talked about something you actually "
+        "built; the ones that went worst were where the answer stayed at the level of a definition."
+        if worst
+        else " You answered with specifics throughout, which is the difference between having built "
+        "something and having read about it."
+    )
     summary = (
         f"{profile.name}, across {len(scored)} questions spanning "
         f"{len({d for r in scored for d in r['days']})} days of the cohort, this interview came out {band}. "
         f"Your record shows a {profile.first_try_rate:.0%} first-try pass rate over "
-        f"{profile.missions_completed} missions and {profile.commit_days} active days, and the interview "
-        "was broadly consistent with that. The questions that went best were the ones where you talked "
-        "about something you actually built; the ones that went worst were where the answer stayed at "
-        "the level of a definition."
+        f"{profile.missions_completed} missions and {profile.commit_days} active days."
+        + closing_note
     )
 
     strengths = [

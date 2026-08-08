@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 from . import question_bank as qb
+from .config import settings
 from .curriculum import Day
 from .profile import CandidateProfile, TopicSignal
 
@@ -344,8 +345,6 @@ class Planner:
 
 def _ensure_floor(blueprint: list[Slot], profile: CandidateProfile) -> list[Slot]:
     """Backstop for thin records: top up until >= 8 slots across >= 4 days."""
-    from .config import settings
-
     used = {d for slot in blueprint for d in slot.days}
     pool = sorted(profile.signals, key=lambda s: (-s.confidence, s.day))
     closing = blueprint.pop() if blueprint and blueprint[-1].kind == "closing" else None
