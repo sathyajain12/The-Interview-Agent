@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AI Cohort · Interview Agent</title>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#161922; --panel-2:#1c2029; --line:#272c38;
+    --ink:#e8eaf0; --muted:#98a0b3; --accent:#6ea8fe; --accent-soft:#1e2a44;
+    --good:#4ade80; --warn:#fbbf24; --bad:#f87171;
+    --radius:14px; --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  @media (prefers-color-scheme: light){
+    :root{ --bg:#f6f7fa; --panel:#fff; --panel-2:#f0f2f7; --line:#dfe3ec;
+           --ink:#161922; --muted:#5c6478; --accent:#2563eb; --accent-soft:#e3ecff; }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  button{font:inherit;cursor:pointer}
+  .wrap{max-width:1180px;margin:0 auto;padding:20px 20px 40px}
+
+  header{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:18px}
+  header h1{font-size:19px;margin:0;letter-spacing:-.2px}
+  header .sub{color:var(--muted);font-size:13px}
+  .badge{margin-left:auto;font-size:12px;padding:5px 10px;border:1px solid var(--line);
+         border-radius:999px;color:var(--muted);background:var(--panel)}
+  .badge b{color:var(--ink)}
+
+  .grid{display:grid;grid-template-columns:320px 1fr;gap:18px;align-items:start}
+  @media (max-width:940px){ .grid{grid-template-columns:1fr} }
+
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+  .card h2{margin:0;padding:14px 16px;font-size:13px;letter-spacing:.06em;text-transform:uppercase;
+           color:var(--muted);border-bottom:1px solid var(--line)}
+
+  .people{max-height:62vh;overflow:auto}
+  .person{display:block;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--line);
+          padding:12px 16px;color:inherit}
+  .person:hover{background:var(--panel-2)}
+  .person[aria-selected="true"]{background:var(--accent-soft);box-shadow:inset 3px 0 0 var(--accent)}
+  .person .n{font-weight:600}
+  .person .r{color:var(--muted);font-size:12.5px}
+  .person .m{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
+  .chip{font-size:11px;padding:2px 7px;border-radius:999px;background:var(--panel-2);
+        border:1px solid var(--line);color:var(--muted);font-family:var(--mono)}
+
+  .chat{display:flex;flex-direction:column;min-height:70vh}
+  .stream{flex:1;padding:18px;overflow:auto;max-height:64vh;scroll-behavior:smooth}
+  .empty{color:var(--muted);text-align:center;padding:70px 24px}
+  .empty strong{display:block;color:var(--ink);font-size:16px;margin-bottom:8px}
+
+  .msg{display:flex;gap:11px;margin-bottom:16px;animation:rise .22s ease}
+  @keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .who{width:30px;height:30px;border-radius:9px;flex:0 0 auto;display:grid;place-items:center;
+       font-size:11px;font-weight:700;background:var(--panel-2);border:1px solid var(--line)}
+  .msg.me{flex-direction:row-reverse}
+  .msg.me .who{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+  .bubble{max-width:min(660px,82%);padding:11px 14px;border-radius:12px;background:var(--panel-2);
+          border:1px solid var(--line);white-space:pre-wrap}
+  .msg.me .bubble{background:var(--accent-soft);border-color:transparent}
+
+  .typing span{display:inline-block;width:6px;height:6px;margin-right:4px;border-radius:50%;
+               background:var(--muted);animation:blink 1.2s infinite}
+  .typing span:nth-child(2){animation-delay:.18s} .typing span:nth-child(3){animation-delay:.36s}
+  @keyframes blink{0%,60%,100%{opacity:.25}30%{opacity:1}}
+
+  .composer{border-top:1px solid var(--line);padding:12px;display:flex;gap:10px;background:var(--panel)}
+  textarea{flex:1;resize:none;min-height:52px;max-height:180px;padding:11px 13px;border-radius:11px;
+           border:1px solid var(--line);background:var(--bg);color:var(--ink);font:inherit}
+  textarea:focus{outline:2px solid var(--accent);outline-offset:-1px}
+  .btn{border:1px solid var(--line);background:var(--panel-2);color:var(--ink);padding:0 18px;border-radius:11px}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#08111f;font-weight:600}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+
+  .meter{padding:12px 16px;border-bottom:1px solid var(--line);background:var(--panel)}
+  .meter .row{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:7px}
+  .track{height:5px;border-radius:99px;background:var(--panel-2);overflow:hidden}
+  .fill{height:100%;background:var(--accent);width:0;transition:width .45s ease}
+  .days{display:flex;gap:5px;flex-wrap:wrap;margin-top:9px}
+
+  .report{margin-top:18px}
+  .report .body{padding:16px}
+  .summary{background:var(--panel-2);border:1px solid var(--line);border-radius:11px;padding:14px;margin-bottom:16px}
+  .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+  .col h3{margin:0 0 8px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+  .col ul{margin:0;padding-left:17px} .col li{margin-bottom:7px}
+  .col.s h3{color:var(--good)} .col.g h3{color:var(--warn)} .col.n h3{color:var(--accent)}
+
+  table{width:100%;border-collapse:collapse;margin-top:18px;font-size:13.5px}
+  th{ text-align:left;color:var(--muted);font-weight:500;font-size:11.5px;letter-spacing:.05em;
+      text-transform:uppercase;border-bottom:1px solid var(--line);padding:8px 6px}
+  td{padding:9px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+  .score{font-family:var(--mono);font-weight:700}
+  .s5,.s4{color:var(--good)} .s3{color:var(--ink)} .s2{color:var(--warn)} .s1,.s0{color:var(--bad)}
+  .err{margin:12px 0;padding:11px 14px;border-radius:10px;background:#3b1d1d;color:#ffc9c9;
+       border:1px solid #6b2b2b;font-size:13.5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>AI Cohort · Interview Agent</h1>
+      <div class="sub">Personalised technical interview built from a candidate's 31-day mission record.</div>
+    </div>
+    <div class="badge" id="engine">connecting…</div>
+  </header>
+
+  <div class="grid">
+    <aside class="card">
+      <h2>Candidates</h2>
+      <div class="people" id="people"></div>
+    </aside>
+
+    <main>
+      <section class="card chat">
+        <div class="meter" id="meter" hidden>
+          <div class="row"><span id="meterLabel">Coverage</span><span id="meterCount"></span></div>
+          <div class="track"><div class="fill" id="fill"></div></div>
+          <div class="days" id="days"></div>
+        </div>
+        <div class="stream" id="stream">
+          <div class="empty"><strong>Pick a candidate to begin</strong>
+          The agent reads their mission record, plans which topics to probe, and runs the interview from there.</div>
+        </div>
+        <div class="composer">
+          <textarea id="input" placeholder="Select a candidate first…" disabled></textarea>
+          <button class="btn primary" id="send" disabled>Send</button>
+          <button class="btn" id="reset" disabled title="Abandon this interview">Reset</button>
+        </div>
+      </section>
+      <div id="error"></div>
+      <section class="card report" id="report" hidden>
+        <h2>Interview feedback</h2>
+        <div class="body" id="reportBody"></div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const state = { candidates: [], selected: null, sessionId: null, busy: false, done: false };
+
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) =>
+  ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]));
+
+async function api(path, options) {
+  const res = await fetch(path, options);
+  if (!res.ok) {
+    let detail = res.statusText;
+    try { detail = (await res.json()).detail || detail; } catch {}
+    throw new Error(detail);
+  }
+  return res.json();
+}
+
+function showError(message) {
+  $("error").innerHTML = message ? `<div class="err">${esc(message)}</div>` : "";
+}
+
+// ---------------------------------------------------------------- candidates
+
+async function loadCandidates() {
+  try {
+    const [{ candidates }, health] = await Promise.all([
+      api("/api/candidates"),
+      api("/health"),
+    ]);
+    state.candidates = candidates;
+    $("engine").innerHTML = health.engine === "llm"
+      ? `engine <b>${esc(health.model)}</b>`
+      : `engine <b>offline</b> · deterministic fallback`;
+    renderCandidates();
+  } catch (e) { showError("Could not reach the API: " + e.message); }
+}
+
+function renderCandidates() {
+  $("people").innerHTML = state.candidates.map((c, i) => {
+    const m = c.member, s = c.signals || {};
+    const skipped = (c.missions || []).filter((x) => x.skipped).length;
+    const failed = (c.missions || []).filter((x) => x.passed === false).length;
+    return `<button class="person" data-i="${i}" aria-selected="false">
+      <div class="n">${esc(m.name)}</div>
+      <div class="r">${esc(m.jobRole)} · ${m.yearsExperience} yrs</div>
+      <div class="m">
+        <span class="chip">${s.missionsFirstTry ?? 0}/${s.missionsCompleted ?? 0} first try</span>
+        <span class="chip">${s.commitDays ?? 0}/31 days</span>
+        ${skipped ? `<span class="chip">${skipped} skipped</span>` : ""}
+        ${failed ? `<span class="chip">${failed} failed</span>` : ""}
+      </div></button>`;
+  }).join("");
+
+  document.querySelectorAll(".person").forEach((el) =>
+    el.addEventListener("click", () => selectCandidate(Number(el.dataset.i))));
+}
+
+// -------------------------------------------------------------------- chat
+
+function bubble(role, text) {
+  const wrap = document.createElement("div");
+  wrap.className = "msg" + (role === "me" ? " me" : "");
+  wrap.innerHTML = `<div class="who">${role === "me" ? "YOU" : "AI"}</div>
+                    <div class="bubble">${esc(text)}</div>`;
+  $("stream").appendChild(wrap);
+  $("stream").scrollTop = $("stream").scrollHeight;
+  return wrap;
+}
+
+function typing() {
+  const wrap = document.createElement("div");
+  wrap.className = "msg";
+  wrap.innerHTML = `<div class="who">AI</div>
+    <div class="bubble typing"><span></span><span></span><span></span></div>`;
+  $("stream").appendChild(wrap);
+  $("stream").scrollTop = $("stream").scrollHeight;
+  return wrap;
+}
+
+function setBusy(busy) {
+  state.busy = busy;
+  $("send").disabled = busy || state.done || !state.sessionId;
+  $("input").disabled = busy || state.done || !state.sessionId;
+  if (!busy && !state.done && state.sessionId) $("input").focus();
+}
+
+function renderProgress(p) {
+  if (!p) return;
+  $("meter").hidden = false;
+  const pct = Math.min(100, Math.round((p.questionsAsked / p.minQuestions) * 100));
+  $("fill").style.width = pct + "%";
+  $("meterCount").textContent =
+    `${p.questionsAsked} question${p.questionsAsked === 1 ? "" : "s"} · ${p.daysCovered.length} curriculum days`;
+  $("meterLabel").textContent = p.phase === "complete"
+    ? "Interview complete"
+    : (p.currentTopic ? "Now discussing · " + p.currentTopic : "Coverage");
+  $("days").innerHTML = p.daysCovered.map((d) => `<span class="chip">Day ${d}</span>`).join("");
+}
+
+// ------------------------------------------------------------------ session
+
+async function selectCandidate(index) {
+  if (state.busy) return;
+  document.querySelectorAll(".person").forEach((el) =>
+    el.setAttribute("aria-selected", String(Number(el.dataset.i) === index)));
+
+  state.selected = state.candidates[index];
+  state.sessionId = crypto.randomUUID();
+  state.done = false;
+  $("stream").innerHTML = "";
+  $("report").hidden = true;
+  $("meter").hidden = true;
+  showError("");
+  $("reset").disabled = false;
+  $("input").placeholder = "Type your answer… (Enter to send, Shift+Enter for a new line)";
+
+  const dots = typing();
+  setBusy(true);
+  try {
+    const body = await api("/api/interview", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId: state.sessionId, candidate: state.selected }),
+    });
+    dots.remove();
+    bubble("ai", body.reply);
+    renderProgress(body.progress);
+  } catch (e) {
+    dots.remove();
+    showError("Could not start the interview: " + e.message);
+    state.sessionId = null;
+  } finally { setBusy(false); }
+}
+
+async function send() {
+  const text = $("input").value.trim();
+  if (!text || state.busy || !state.sessionId) return;
+  $("input").value = "";
+  bubble("me", text);
+  const dots = typing();
+  setBusy(true);
+  try {
+    const body = await api("/api/interview", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId: state.sessionId, message: text }),
+    });
+    dots.remove();
+    bubble("ai", body.reply);
+    renderProgress(body.progress);
+    if (body.done) {
+      state.done = true;
+      renderReport(body.feedback, body.report);
+    }
+  } catch (e) {
+    dots.remove();
+    showError("Turn failed: " + e.message);
+  } finally { setBusy(false); }
+}
+
+function renderReport(feedback, report) {
+  if (!feedback) return;
+  const list = (items) => (items || []).map((i) => `<li>${esc(i)}</li>`).join("");
+  const rows = (report?.topics || []).map((t) => `
+    <tr>
+      <td class="score s${t.score ?? 0}">${t.score ?? "–"}</td>
+      <td>${esc(t.topic)}</td>
+      <td>${(t.days || []).map((d) => `Day ${d}`).join(", ")}</td>
+      <td>${esc(String(t.kind).replace(/_/g, " "))}</td>
+    </tr>`).join("");
+
+  $("reportBody").innerHTML = `
+    <div class="summary">${esc(feedback.summary)}</div>
+    <div class="cols">
+      <div class="col s"><h3>Strengths</h3><ul>${list(feedback.strengths)}</ul></div>
+      <div class="col g"><h3>Gaps</h3><ul>${list(feedback.gaps)}</ul></div>
+      <div class="col n"><h3>What to do next</h3><ul>${list(feedback.next)}</ul></div>
+    </div>
+    ${report ? `<table>
+      <thead><tr><th>Score</th><th>Topic</th><th>Curriculum</th><th>Probe type</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <p style="color:var(--muted);font-size:12.5px;margin-top:12px">
+      Average ${report.averageScore}/5 across ${report.questionsAnswered} answers ·
+      calibration: ${esc(report.calibration)} · engine: ${esc(report.engine)}
+    </p>` : ""}`;
+  $("report").hidden = false;
+  $("report").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+$("send").addEventListener("click", send);
+$("input").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+});
+$("reset").addEventListener("click", () => {
+  if (state.sessionId) fetch("/api/interview/" + state.sessionId, { method: "DELETE" }).catch(() => {});
+  state.sessionId = null; state.done = false;
+  $("stream").innerHTML = `<div class="empty"><strong>Pick a candidate to begin</strong>
+    The agent reads their mission record, plans which topics to probe, and runs the interview from there.</div>`;
+  $("report").hidden = true; $("meter").hidden = true;
+  document.querySelectorAll(".person").forEach((el) => el.setAttribute("aria-selected", "false"));
+  setBusy(false);
+  $("reset").disabled = true;
+});
+
+loadCandidates();
+</script>
+</body>
+</html>
